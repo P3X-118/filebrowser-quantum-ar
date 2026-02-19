@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: 2023 Slavi Pantaleev
+# SPDX-FileCopyrightText: 2025 Suguru Hirahara
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Check existence of FileBrowser Quantum systemd service
+  ansible.builtin.stat:
+    path: "{{ devture_systemd_docker_base_systemd_path }}/{{ filebrowser_quantum_identifier }}.service"
+  register: filebrowser_quantum_service_stat
+
+- name: Uninstall FileBrowser Quantum systemd services and files
+  when: filebrowser_quantum_service_stat.stat.exists | bool
+  block:
+    - name: Ensure FileBrowser Quantum systemd service is stopped
+      ansible.builtin.service:
+        name: "{{ filebrowser_quantum_identifier }}"
+        state: stopped
+        enabled: false
+        daemon_reload: true
+
+    - name: Ensure FileBrowser Quantum systemd service does not exist
+      ansible.builtin.file:
+        path: "{{ devture_systemd_docker_base_systemd_path }}/{{ filebrowser_quantum_identifier }}.service"
+        state: absent
+
+    - name: Ensure FileBrowser Quantum support files do not exist
+      ansible.builtin.file:
+        path: "{{ filebrowser_quantum_base_path }}/{{ item }}"
+        state: absent
+      with_items:
+        - env
+        - labels
+
+    - name: Ensure FileBrowser Quantum image source files path does not exist
+      ansible.builtin.file:
+        path: "{{ filebrowser_quantum_container_image_self_build_src_files_path }}"
+        state: absent
+
+    - name: Ensure FileBrowser Quantum local cache path does not exist
+      ansible.builtin.file:
+        path: "{{ filebrowser_quantum_cache_path }}"
+        state: absent
+
+    - name: Ensure FileBrowser Quantum local data path does not exist if empty
+      ansible.builtin.command:
+        cmd: "rmdir {{ filebrowser_quantum_data_path }}"
+      register: filebrowser_quantum_data_path_deletion_result
+      changed_when: filebrowser_quantum_data_path_deletion_result.rc == 0
+      failed_when: false
+
+    - name: Ensure FileBrowser Quantum local files path does not exist if empty
+      ansible.builtin.command:
+        cmd: "rmdir {{ filebrowser_quantum_files_path }}"
+      register: filebrowser_quantum_files_path_deletion_result
+      changed_when: filebrowser_quantum_files_path_deletion_result.rc == 0
+      failed_when: false
+
+    - name: Ensure FileBrowser Quantum base path does not exist if empty
+      ansible.builtin.command:
+        cmd: "rmdir {{ filebrowser_quantum_base_path }}"
+      register: filebrowser_quantum_base_path_deletion_result
+      changed_when: filebrowser_quantum_base_path_deletion_result.rc == 0
+      failed_when: false
+
+    - name: Ensure FileBrowser Quantum container network does not exist
+      when: filebrowser_quantum_container_network_deletion_enabled
+      block:
+        - name: Ensure FileBrowser Quantum container network does not exist via community.docker.docker_network
+          when: devture_systemd_docker_base_container_network_creation_method == 'ansible-module'
+          community.docker.docker_network:
+            name: "{{ filebrowser_quantum_container_network }}"
+            state: absent
+          register: filebrowser_quantum_network_deletion_result
+
+        - name: Ensure FileBrowser Quantum container network does not exist via ansible.builtin.command
+          when: devture_systemd_docker_base_container_network_creation_method == 'command'
+          ansible.builtin.command:
+            cmd: >-
+              {{ devture_systemd_docker_base_host_command_docker }} network rm
+              {{ filebrowser_quantum_container_network }}
+          register: filebrowser_quantum_network_deletion_result
+          changed_when: filebrowser_quantum_container_network in filebrowser_quantum_network_deletion_result.stdout
+
+- name: Check existence of FileBrowser Quantum local data path
+  ansible.builtin.stat:
+    path: "{{ filebrowser_quantum_data_path }}"
+  register: filebrowser_quantum_data_path_stat
+
+# We just want to notify the user. Deleting data is too destructive.
+- name: Notify if FileBrowser Quantum local data remains
+  when: filebrowser_quantum_data_path_stat.stat.exists | bool
+  ansible.builtin.set_fact:
+    devture_playbook_runtime_messages_list: |
+      {{
+        devture_playbook_runtime_messages_list | default([])
+        +
+        [
+          "Note: As the local FileBrowser Quantum instance has been removed, some old data remains in `" + filebrowser_quantum_data_path + "`. Feel free to delete it."
+        ]
+      }}
+
+- name: Check existence of FileBrowser Quantum local files path
+  ansible.builtin.stat:
+    path: "{{ filebrowser_quantum_files_path }}"
+  register: filebrowser_quantum_files_path_stat
+
+# We just want to notify the user. Deleting data is too destructive.
+- name: Notify if FileBrowser Quantum local files remain
+  when: filebrowser_quantum_files_path_stat.stat.exists | bool
+  ansible.builtin.set_fact:
+    devture_playbook_runtime_messages_list: |
+      {{
+        devture_playbook_runtime_messages_list | default([])
+        +
+        [
+          "Note: As the local FileBrowser Quantum instance has been removed, some old files remain in `" + filebrowser_quantum_files_path + "`. Feel free to delete it."
+        ]
+      }}

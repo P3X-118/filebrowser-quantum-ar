@@ -1,0 +1,65 @@
+{#
+SPDX-FileCopyrightText: 2023 Slavi Pantaleev
+SPDX-FileCopyrightText: 2024 Nikita Chernyi
+SPDX-FileCopyrightText: 2025 Suguru Hirahara
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+#}
+
+[Unit]
+Description=FileBrowser Quantum ({{ filebrowser_quantum_identifier }})
+{% for service in filebrowser_quantum_systemd_required_services_list %}
+Requires={{ service }}
+After={{ service }}
+{% endfor %}
+{% for service in filebrowser_quantum_systemd_wanted_services_list %}
+Wants={{ service }}
+{% endfor %}
+DefaultDependencies=no
+
+[Service]
+Type=simple
+Environment="HOME={{ devture_systemd_docker_base_systemd_unit_home_path }}"
+ExecStartPre=-{{ devture_systemd_docker_base_host_command_sh }} -c '{{ devture_systemd_docker_base_host_command_docker }} stop -t {{ devture_systemd_docker_base_container_stop_grace_time_seconds }} {{ filebrowser_quantum_identifier }} 2>/dev/null || true'
+ExecStartPre=-{{ devture_systemd_docker_base_host_command_sh }} -c '{{ devture_systemd_docker_base_host_command_docker }} rm {{ filebrowser_quantum_identifier }} 2>/dev/null || true'
+
+ExecStartPre={{ devture_systemd_docker_base_host_command_docker }} create \
+      --rm \
+      --name={{ filebrowser_quantum_identifier }} \
+      --log-driver=none \
+      --user={{ filebrowser_quantum_uid }}:{{ filebrowser_quantum_gid }} \
+      --cap-drop=ALL \
+      --read-only \
+      --network={{ filebrowser_quantum_container_network }} \
+      {% if filebrowser_quantum_container_http_host_bind_port %}
+      -p {{ filebrowser_quantum_container_http_host_bind_port }}:{{ filebrowser_quantum_container_http_port }} \
+      {% endif %}
+      --env-file={{ filebrowser_quantum_base_path }}/env \
+      --label-file={{ filebrowser_quantum_base_path }}/labels \
+      --mount type=bind,src={{ filebrowser_quantum_cache_path }},dst=/home/filebrowser/cache \
+      --mount type=bind,src={{ filebrowser_quantum_data_path }},dst=/home/filebrowser/data \
+      --mount type=bind,src={{ filebrowser_quantum_files_path }},dst=/folder \
+      {% for volume in filebrowser_quantum_container_additional_volumes %}
+      --mount type={{ volume.type | default('bind' if '/' in volume.src else 'volume') }},src={{ volume.src }},dst={{ volume.dst }}{{ (',' + volume.options) if volume.options else '' }} \
+      {% endfor %}
+      --tmpfs=/.cache:rw,noexec,nosuid,size={{ filebrowser_quantum_container_tmpfs_dotcache_size }} \
+      {% for arg in filebrowser_quantum_container_extra_arguments %}
+      {{ arg }} \
+      {% endfor %}
+      {{ filebrowser_quantum_container_image_self_build_name if filebrowser_quantum_container_image_self_build else filebrowser_quantum_container_image }}
+
+{% for network in filebrowser_quantum_container_additional_networks %}
+ExecStartPre={{ devture_systemd_docker_base_host_command_docker }} network connect {{ network }} {{ filebrowser_quantum_identifier }}
+{% endfor %}
+
+ExecStart={{ devture_systemd_docker_base_host_command_docker }} start --attach {{ filebrowser_quantum_identifier }}
+
+ExecStop=-{{ devture_systemd_docker_base_host_command_sh }} -c '{{ devture_systemd_docker_base_host_command_docker }} stop -t {{ devture_systemd_docker_base_container_stop_grace_time_seconds }} {{ filebrowser_quantum_identifier }} 2>/dev/null || true'
+ExecStop=-{{ devture_systemd_docker_base_host_command_sh }} -c '{{ devture_systemd_docker_base_host_command_docker }} rm {{ filebrowser_quantum_identifier }} 2>/dev/null || true'
+
+Restart=always
+RestartSec=30
+SyslogIdentifier={{ filebrowser_quantum_identifier }}
+
+[Install]
+WantedBy=multi-user.target

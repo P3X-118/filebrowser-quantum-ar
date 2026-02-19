@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2023 Slavi Pantaleev
+# SPDX-FileCopyrightText: 2025 Suguru Hirahara
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Perform FileBrowser Quantum installation tasks
+  when: filebrowser_quantum_enabled | bool
+  tags:
+    - setup-all
+    - setup-filebrowser-quantum
+    - install-all
+    - install-filebrowser-quantum
+  block:
+    - name: Validate FileBrowser Quantum configuration
+      ansible.builtin.include_tasks: "{{ role_path }}/tasks/validate_config.yml"
+    - name: Install FileBrowser Quantum
+      ansible.builtin.include_tasks: "{{ role_path }}/tasks/install.yml"
+
+- name: Perform FileBrowser Quantum uninstallation tasks
+  when: not filebrowser_quantum_enabled | bool
+  tags:
+    - setup-all
+    - setup-filebrowser-quantum
+  block:
+    - name: Uninstall FileBrowser Quantum
+      ansible.builtin.include_tasks: "{{ role_path }}/tasks/uninstall.yml"

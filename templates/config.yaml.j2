@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2025 Graham Steffaniak
+# SPDX-FileCopyrightText: 2025 Suguru Hirahara
+#
+# SPDX-License-Identifier: Apache-2.0
+
+---
+server:
+  baseURL: "{{ filebrowser_quantum_path_prefix }}"
+  cacheDir: /home/filebrowser/cache
+  database: data/database.db
+  internalUrl: "http://{{ filebrowser_quantum_identifier }}:{{ filebrowser_quantum_container_http_port }}"
+  port: "{{ filebrowser_quantum_container_http_port }}"
+  sources:
+    - path: /folder
+      config:
+        defaultEnabled: true
+auth:
+  adminUsername: {{ filebrowser_quantum_config_auth_adminusername | to_yaml }}
+{% if filebrowser_quantum_config_auth_methods_oidc %}
+  methods:
+    oidc:
+      enabled: true
+      clientId: {{ filebrowser_quantum_config_auth_methods_oidc_clientid | to_yaml }}
+      issuerUrl: {{ filebrowser_quantum_config_auth_methods_oidc_issuerurl | to_yaml }}
+      scopes: {{ filebrowser_quantum_config_auth_methods_oidc_scopes | to_yaml }}
+      userIdentifier: {{ filebrowser_quantum_config_auth_methods_oidc_useridentifier | to_yaml }}
+      disableVerifyTLS: {{ filebrowser_quantum_config_auth_methods_oidc_disableverifytls | to_yaml }}
+      createUser: {{ filebrowser_quantum_config_auth_methods_oidc_createuser | to_yaml }}
+{% endif %}
+{% if filebrowser_quantum_config_integrations_office %}
+integrations:
+  office:
+    url: {{ filebrowser_quantum_config_integrations_office_url | to_yaml }}
+{% endif %}
+{{ filebrowser_quantum_config_additional_configurations }}

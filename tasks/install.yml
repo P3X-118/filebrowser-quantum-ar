@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: 2023 - 2025 Slavi Pantaleev
+# SPDX-FileCopyrightText: 2025 Suguru Hirahara
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Ensure FileBrowser Quantum paths exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+    owner: "{{ filebrowser_quantum_uid }}"
+    group: "{{ filebrowser_quantum_gid }}"
+  with_items:
+    - "{{ filebrowser_quantum_base_path }}"
+    - "{{ filebrowser_quantum_cache_path }}"
+    - "{{ filebrowser_quantum_data_path }}"
+    - "{{ filebrowser_quantum_files_path }}"
+
+- name: Ensure FileBrowser Quantum support files installed
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/{{ item }}.j2"
+    dest: "{{ filebrowser_quantum_base_path }}/{{ item }}"
+    mode: "0640"
+    owner: "{{ filebrowser_quantum_uid }}"
+    group: "{{ filebrowser_quantum_gid }}"
+  with_items:
+    - env
+    - labels
+  register: filebrowser_quantum_support_files_result
+
+- name: Ensure FileBrowser Quantum configuration file installed
+  ansible.builtin.copy:
+    content: "{{ filebrowser_quantum_configuration | to_nice_yaml(indent=2, width=999999) }}"
+    dest: "{{ filebrowser_quantum_data_path }}/config.yaml"
+    mode: "0640"
+    owner: "{{ filebrowser_quantum_uid }}"
+    group: "{{ filebrowser_quantum_gid }}"
+  register: filebrowser_quantum_config_file_result
+
+- name: Run if self-building of FileBrowser Quantum container image is not enabled
+  when: "not filebrowser_quantum_container_image_self_build | bool"
+  block:
+    - name: Ensure FileBrowser Quantum container image is pulled via community.docker.docker_image
+      when: devture_systemd_docker_base_container_image_pull_method == 'ansible-module'
+      community.docker.docker_image:
+        name: "{{ filebrowser_quantum_container_image }}"
+        source: "{{ 'pull' if ansible_version.major > 2 or ansible_version.minor > 7 else omit }}"
+        force_source: "{{ filebrowser_quantum_container_image_force_pull if ansible_version.major > 2 or ansible_version.minor >= 8 else omit }}"
+        force: "{{ omit if ansible_version.major > 2 or ansible_version.minor >= 8 else filebrowser_quantum_container_image_force_pull }}"
+      register: filebrowser_quantum_container_image_pull_result
+      retries: "{{ devture_playbook_help_container_retries_count }}"
+      delay: "{{ devture_playbook_help_container_retries_delay }}"
+      until: filebrowser_quantum_container_image_pull_result is not failed
+
+    - name: Ensure FileBrowser Quantum container image is pulled via ansible.builtin.command
+      when: devture_systemd_docker_base_container_image_pull_method == 'command'
+      ansible.builtin.command:
+        cmd: "{{ devture_systemd_docker_base_host_command_docker }} pull {{ filebrowser_quantum_container_image }}"
+      register: filebrowser_quantum_container_image_pull_result
+      retries: "{{ devture_playbook_help_container_retries_count }}"
+      delay: "{{ devture_playbook_help_container_retries_delay }}"
+      until: filebrowser_quantum_container_image_pull_result is not failed
+      changed_when: "'Downloaded newer image' in filebrowser_quantum_container_image_pull_result.stdout"
+
+- name: Run if self-building of FileBrowser Quantum container image is enabled
+  when: "filebrowser_quantum_container_image_self_build | bool"
+  block:
+    - name: Ensure FileBrowser Quantum repository is present on self-build
+      ansible.builtin.git:
+        repo: "{{ filebrowser_quantum_container_image_self_build_repo }}"
+        version: "{{ filebrowser_quantum_container_image_self_build_repo_version }}"
+        dest: "{{ filebrowser_quantum_container_image_self_build_src_files_path }}"
+        force: "yes"
+      register: filebrowser_quantum_git_pull_results
+
+    - name: Ensure FileBrowser Quantum container image is built
+      community.docker.docker_image:
+        name: "{{ filebrowser_quantum_container_image_self_build_name }}"
+        source: build
+        force_source: "{{ filebrowser_quantum_git_pull_results.changed if ansible_version.major > 2 or ansible_version.minor >= 8 else omit }}"
+        force: "{{ omit if ansible_version.major > 2 or ansible_version.minor >= 8 else filebrowser_quantum_git_pull_results.changed }}"
+        build:
+          dockerfile: Dockerfile
+          path: "{{ filebrowser_quantum_container_image_self_build_src_files_path }}"
+          pull: true
+          args:
+      register: filebrowser_quantum_container_image_build_result
+
+- name: Ensure FileBrowser Quantum container network is created via community.docker.docker_network
+  when: devture_systemd_docker_base_container_network_creation_method == 'ansible-module'
+  community.docker.docker_network:
+    enable_ipv6: "{{ devture_systemd_docker_base_ipv6_enabled }}"
+    name: "{{ filebrowser_quantum_container_network }}"
+    driver: bridge
+    driver_options: "{{ devture_systemd_docker_base_container_networks_driver_options }}"
+  register: filebrowser_quantum_network_creation_result
+
+- name: Ensure FileBrowser Quantum container network is created via ansible.builtin.command
+  when: devture_systemd_docker_base_container_network_creation_method == 'command'
+  ansible.builtin.command:
+    cmd: >-
+      {{ devture_systemd_docker_base_host_command_docker }} network create
+      {% if devture_systemd_docker_base_ipv6_enabled %}--ipv6{% endif %}
+      {{ devture_systemd_docker_base_container_networks_driver_options_string }}
+      {{ filebrowser_quantum_container_network }}
+  register: filebrowser_quantum_network_creation_result
+  changed_when: filebrowser_quantum_network_creation_result.rc == 0
+  failed_when: filebrowser_quantum_network_creation_result.rc != 0 and 'already exists' not in filebrowser_quantum_network_creation_result.stderr
+
+- name: Ensure FileBrowser Quantum systemd service is present
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/systemd/filebrowser-quantum.service.j2"
+    dest: "{{ devture_systemd_docker_base_systemd_path }}/{{ filebrowser_quantum_identifier }}.service"
+    mode: "0644"
+  register: filebrowser_quantum_systemd_service_result
+
+- name: Determine whether FileBrowser Quantum needs a restart
+  ansible.builtin.set_fact:
+    filebrowser_quantum_restart_necessary: >-
+      {{
+        filebrowser_quantum_support_files_result.changed | default(false)
+        or filebrowser_quantum_config_file_result.changed | default(false)
+        or filebrowser_quantum_systemd_service_result.changed | default(false)
+        or filebrowser_quantum_container_image_pull_result.changed | default(false)
+        or filebrowser_quantum_container_image_build_result.changed | default(false)
+      }}
