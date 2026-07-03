@@ -6,7 +6,7 @@
 ---
 - name: Check existence of FileBrowser Quantum systemd service
   ansible.builtin.stat:
-    path: "{{ devture_systemd_docker_base_systemd_path }}/{{ filebrowser_quantum_identifier }}.service"
+    path: "{{ sysd_docker_service_path }}/{{ filebrowser_quantum_identifier }}.service"
   register: filebrowser_quantum_service_stat
 
 - name: Uninstall FileBrowser Quantum systemd services and files
@@ -21,7 +21,7 @@
 
     - name: Ensure FileBrowser Quantum systemd service does not exist
       ansible.builtin.file:
-        path: "{{ devture_systemd_docker_base_systemd_path }}/{{ filebrowser_quantum_identifier }}.service"
+        path: "{{ sysd_docker_service_path }}/{{ filebrowser_quantum_identifier }}.service"
         state: absent
 
     - name: Ensure FileBrowser Quantum support files do not exist
@@ -67,17 +67,17 @@
       when: filebrowser_quantum_container_network_deletion_enabled
       block:
         - name: Ensure FileBrowser Quantum container network does not exist via community.docker.docker_network
-          when: devture_systemd_docker_base_container_network_creation_method == 'ansible-module'
+          when: sysd_docker_net_creation_method == 'ansible-module'
           community.docker.docker_network:
             name: "{{ filebrowser_quantum_container_network }}"
             state: absent
           register: filebrowser_quantum_network_deletion_result
 
         - name: Ensure FileBrowser Quantum container network does not exist via ansible.builtin.command
-          when: devture_systemd_docker_base_container_network_creation_method == 'command'
+          when: sysd_docker_net_creation_method == 'command'
           ansible.builtin.command:
             cmd: >-
-              {{ devture_systemd_docker_base_host_command_docker }} network rm
+              {{ sysd_docker_host_command }} network rm
               {{ filebrowser_quantum_container_network }}
           register: filebrowser_quantum_network_deletion_result
           changed_when: filebrowser_quantum_container_network in filebrowser_quantum_network_deletion_result.stdout
@@ -91,9 +91,9 @@
 - name: Notify if FileBrowser Quantum local data remains
   when: filebrowser_quantum_data_path_stat.stat.exists | bool
   ansible.builtin.set_fact:
-    devture_playbook_runtime_messages_list: |
+    playbook_runtime_messages: |
       {{
-        devture_playbook_runtime_messages_list | default([])
+        playbook_runtime_messages | default([])
         +
         [
           "Note: As the local FileBrowser Quantum instance has been removed, some old data remains in `" + filebrowser_quantum_data_path + "`. Feel free to delete it."
@@ -109,9 +109,9 @@
 - name: Notify if FileBrowser Quantum local files remain
   when: filebrowser_quantum_files_path_stat.stat.exists | bool
   ansible.builtin.set_fact:
-    devture_playbook_runtime_messages_list: |
+    playbook_runtime_messages: |
       {{
-        devture_playbook_runtime_messages_list | default([])
+        playbook_runtime_messages | default([])
         +
         [
           "Note: As the local FileBrowser Quantum instance has been removed, some old files remain in `" + filebrowser_quantum_files_path + "`. Feel free to delete it."

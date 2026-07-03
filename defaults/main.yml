@@ -8,7 +8,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-# Project source code URL: https://github.com/gtsteffaniak/filebrowser
+# Project source code URL: https://github.com/P3X-118/filebrowser (fork of https://github.com/gtsteffaniak/filebrowser)
 
 filebrowser_quantum_enabled: true
 
@@ -44,10 +44,14 @@ filebrowser_quantum_container_image_registry_prefix_upstream_default: ghcr.io/
 filebrowser_quantum_container_image_force_pull: "{{ filebrowser_quantum_container_image.endswith(':latest') }}"
 
 filebrowser_quantum_container_image_self_build: false
-filebrowser_quantum_container_image_self_build_name: "gtsteffaniak/filebrowser:{{ filebrowser_quantum_container_image_self_build_repo_version }}"
-filebrowser_quantum_container_image_self_build_repo: "https://github.com/gtsteffaniak/filebrowser.git"
+filebrowser_quantum_container_image_self_build_name: "p3x-118/filebrowser:{{ filebrowser_quantum_container_image_self_build_repo_version }}"
+filebrowser_quantum_container_image_self_build_repo: "https://github.com/P3X-118/filebrowser.git"
+# Used verbatim as the git ref to check out, so release tags on the fork's `sgc`
+# branch carry the bare version string (e.g. `1.5.0-0`), not a `v` prefix.
 filebrowser_quantum_container_image_self_build_repo_version: "{{ filebrowser_quantum_version if filebrowser_quantum_version != 'latest' else 'main' }}"
 filebrowser_quantum_container_image_self_build_src_files_path: "{{ filebrowser_quantum_base_path }}/docker-src"
+# The Dockerfile lives under `_docker/` in the source repository, not at its root.
+filebrowser_quantum_container_image_self_build_dockerfile: "_docker/Dockerfile"
 
 # The base container network. It will be auto-created by this role if it doesn't exist already.
 filebrowser_quantum_container_network: "{{ filebrowser_quantum_identifier }}"
@@ -183,7 +187,7 @@ filebrowser_quantum_hsts_preload_enabled: false
 
 # List of systemd services that the FileBrowser Quantum systemd service depends on
 filebrowser_quantum_systemd_required_services_list: "{{ filebrowser_quantum_systemd_required_services_list_default + filebrowser_quantum_systemd_required_services_list_auto + filebrowser_quantum_systemd_required_services_list_custom }}"
-filebrowser_quantum_systemd_required_services_list_default: "{{ [devture_systemd_docker_base_docker_service_name] if devture_systemd_docker_base_docker_service_name else [] }}"
+filebrowser_quantum_systemd_required_services_list_default: "{{ [sysd_docker_service] if sysd_docker_service else [] }}"
 filebrowser_quantum_systemd_required_services_list_auto: []
 filebrowser_quantum_systemd_required_services_list_custom: []
 
