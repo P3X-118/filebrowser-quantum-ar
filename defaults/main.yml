@@ -198,6 +198,14 @@ filebrowser_quantum_systemd_wanted_services_list_auto: []
 filebrowser_quantum_systemd_wanted_services_list_custom: []
 
 # Specify administrator's username
+# In-container state paths. These MUST stay inside the bind mounts declared in
+# the systemd unit (data -> /home/filebrowser/data, cache -> /home/filebrowser/cache):
+# the unit removes and recreates the container on every restart, so anything
+# outside a mount is wiped. Pinned absolute here (config AND env) so persistence
+# does not depend on the image's WORKDIR or its baked-in FILEBROWSER_* defaults.
+filebrowser_quantum_config_server_database: /home/filebrowser/data/database.db
+filebrowser_quantum_config_server_cachedir: /home/filebrowser/cache
+
 filebrowser_quantum_config_auth_adminusername: admin
 
 # Control if OIDC authentication is enabled

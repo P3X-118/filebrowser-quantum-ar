@@ -6,8 +6,8 @@
 ---
 server:
   baseURL: "{{ filebrowser_quantum_path_prefix }}"
-  cacheDir: /home/filebrowser/cache
-  database: data/database.db
+  cacheDir: "{{ filebrowser_quantum_config_server_cachedir }}"
+  database: "{{ filebrowser_quantum_config_server_database }}"
   internalUrl: "http://{{ filebrowser_quantum_identifier }}:{{ filebrowser_quantum_container_http_port }}"
   port: "{{ filebrowser_quantum_container_http_port }}"
   sources:
